@@ -209,6 +209,31 @@ Because of parallel processes to access mongodb in Jest, we were obliged to crea
 Therefore, we enabled multiple simultaneous connections to mongodb through mongoose as described in https://mongoosejs.com/docs/connections.html#multiple_connections.
 To adapt to that constraint, TestContainerSingleton.getInstance() now accepts a singleton:boolean parameter to tell it if it has to be a singleton or a prototype (on false value). See the file testContainer.ts for reference
 
+## Credit Transaction Server
+
+This repository now includes a lightweight transaction server (`src/server.ts`) that can be deployed independently and used as the only writer for user-credit transactions.
+
+### Environment
+
+Copy `.env.example` and provide values:
+
+- `DB_URL`: Mongo URI shared with your other services (for example UDS).
+- `DB_NAME`: dedicated database name for user-credits data.
+- `PORT`: HTTP port for this service.
+- `USER_CREDITS_HTTP_API_KEY`: optional write-protection API key (`x-api-key` header).
+
+This keeps services decoupled while still sharing the same Mongo instance/cluster.
+
+### Endpoints
+
+- `GET /health`
+- `GET /credits/:userId`
+- `POST /credits/consume`
+- `POST /credits/add`
+- `POST /credits/adjust`
+
+Write endpoints require `x-api-key` when `USER_CREDITS_HTTP_API_KEY` is configured.
+
 ## Contributing
 
 UserCredits is an open-source project, and we welcome contributions from the community. Whether you want to add new features, improve documentation, or report issues, your help is valuable. Feel free to [contact me](https://twitter.com/zhamdi) or to fork the project.

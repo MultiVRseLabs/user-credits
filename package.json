@@ -33,9 +33,12 @@
   "scripts": {
     "buildX": "rm -rf ./dist && npx tsc && tsc-alias",
     "build": "rmdir /s /q .\\dist & npx tsc & tsc-alias",
+    "build:server": "npm run build",
     "buildTrace": "rmdir /s /q .\\dist & npx tsc --traceResolution",
     "lint": "npx eslint --fix .",
     "prepublishOnly": "pnpm lint && pnpm build && pnpm testPublish",
+    "start:server": "node ./dist/server.js",
+    "serve": "npm run build:server && npm run start:server",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage --coverageDirectory='coverage'",
     "testWatch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watchAll --no-cache --coverage --coverageDirectory='coverage'",
     "testPublish": "node --experimental-vm-modules node_modules/jest/bin/jest.js --no-cache"

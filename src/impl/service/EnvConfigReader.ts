@@ -18,12 +18,26 @@ export class EnvConfigReader implements IConfigReader {
   private readonly _dbName: string;
 
   constructor() {
+    const dbUrlEnv = String(process.env.DB_URL || "").trim();
+    const dbNameEnv = String(process.env.DB_NAME || "").trim();
+    const strictDbEnv =
+      process.env.NODE_ENV === "production" ||
+      String(process.env.REQUIRE_EXPLICIT_DB_ENV || "").toLowerCase() ===
+        "true";
+
     this.publicKey = process.env.PUBLIC_STRIPE_KEY || "";
     this.privateKey = process.env.PRIVATE_STRIPE_KEY || "";
     this.apiVersion = process.env.PRIVATE_STRIPE_API_VERSION || "2023-08-16";
     this.defaultCurrency = process.env.CURRENCY || "usd";
-    this._dbName = process.env.DB_NAME || "user-credits";
-    this._dbUrl = process.env.DB_URL || "mongodb://localhost:27001";
+
+    if (strictDbEnv && (!dbUrlEnv || !dbNameEnv)) {
+      throw new Error(
+        "DB_URL and DB_NAME are required when NODE_ENV=production or REQUIRE_EXPLICIT_DB_ENV=true",
+      );
+    }
+
+    this._dbName = dbNameEnv || "user-credits";
+    this._dbUrl = dbUrlEnv || "mongodb://localhost:27001";
   }
   get dbUrl(): string {
     return this._dbUrl;
