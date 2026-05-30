@@ -14,14 +14,17 @@ import {
 } from "@user-credits/core";
 
 import { OfferDao, OrderDao, TokenTimetableDao, UserCreditsDao } from ".";
+import { CreditTransactionLogDao } from "./CreditTransactionLogDao";
 
 export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
+  private readonly creditTransactionLogDao;
   private readonly offerDao;
   private readonly orderDao;
   private readonly tokenTimetableDao;
   private readonly userCreditsDao;
 
   constructor(public connection: Connection) {
+    this.creditTransactionLogDao = new CreditTransactionLogDao(connection);
     this.offerDao = new OfferDao(connection);
     this.orderDao = new OrderDao(connection);
     this.tokenTimetableDao = new TokenTimetableDao(connection);
@@ -45,5 +48,9 @@ export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
 
   getUserCreditsDao(): IUserCreditsDao<ObjectId, IUserCredits<ObjectId>> {
     return this.userCreditsDao;
+  }
+
+  getCreditTransactionLogDao(): CreditTransactionLogDao {
+    return this.creditTransactionLogDao;
   }
 }

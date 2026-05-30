@@ -47,6 +47,7 @@
     "@jest/globals": "^29.7.0",
     "@swc/jest": "^0.2.29",
     "@tsconfig/recommended": "^1.0.3",
+    "@types/express": "^4.17.21",
     "@types/jest": "^29.5.5",
     "@types/node": "^20.9.1",
     "@typescript-eslint/eslint-plugin": "^6.7.2",
@@ -74,6 +75,7 @@
     "awilix": "^9.0.0",
     "bson": "^6.1.0",
     "dotenv": "^16.3.1",
+    "express": "^4.21.2",
     "mongoose": "^7.5.3",
     "stripe": "^14.4.0"
   }

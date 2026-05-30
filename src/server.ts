@@ -6,12 +6,17 @@ import { CreditTransactionService } from "./impl/service/CreditTransactionServic
 import { EnvConfigReader } from "./impl/service/EnvConfigReader";
 
 const PORT = Number(process.env.PORT || 3100);
+const API_PREFIX = "/api/user-credits";
 
-function assertWriteApiKey(
+function getExpectedApiKey(): string {
+  return String(process.env.USER_CREDITS_HTTP_API_KEY || "").trim();
+}
+
+function assertApiKey(
   req: express.Request,
   res: express.Response,
 ): boolean {
-  const expected = String(process.env.USER_CREDITS_HTTP_API_KEY || "").trim();
+  const expected = getExpectedApiKey();
   if (!expected) return true;
   const incoming = String(req.headers["x-api-key"] || "").trim();
   if (incoming !== expected) {
@@ -21,67 +26,149 @@ function assertWriteApiKey(
   return true;
 }
 
+function readPositiveNumber(value: unknown, fieldName: string): number {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${fieldName} must be a positive number`);
+  }
+  return parsed;
+}
+
 export function createCreditTransactionApp(
   transactionService: CreditTransactionService,
 ) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
 
-  app.get("/health", (_req, res) => {
+  app.get(`${API_PREFIX}/health`, (_req, res) => {
     res.json({ ok: true, service: "user-credits-transaction-server" });
   });
 
-  app.get("/credits/:userId", async (req, res) => {
+  app.get(`${API_PREFIX}/balance/:userId`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
     try {
       const data = await transactionService.loadUserCredits(req.params.userId);
       res.json({ success: true, data });
     } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to load user credits" });
+      res.status(400).json({
+        error: error?.message || "Failed to load user credit balance",
+      });
     }
   });
 
-  app.post("/credits/consume", async (req, res) => {
-    if (!assertWriteApiKey(req, res)) return;
+  app.get(`${API_PREFIX}/transactions/:userId`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
     try {
-      const { userId, offerGroup, count } = req.body || {};
-      const data = await transactionService.consumeCredits(
-        String(userId || ""),
-        String(offerGroup || ""),
-        Number(count),
+      const limit = Number(req.query.limit || 100);
+      const data = await transactionService.loadTransactionHistory(
+        req.params.userId,
+        Number.isFinite(limit) ? limit : 100,
       );
       res.json({ success: true, data });
     } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to consume credits" });
+      res.status(400).json({
+        error: error?.message || "Failed to load transaction history",
+      });
     }
   });
 
-  app.post("/credits/add", async (req, res) => {
-    if (!assertWriteApiKey(req, res)) return;
+  app.post(`${API_PREFIX}/transactions/token-purchase`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
     try {
-      const { userId, offerGroup, count } = req.body || {};
-      const data = await transactionService.addCredits(
+      const { credits, metadata, offerGroup, orderId, reason, userId } =
+        req.body || {};
+      const result = await transactionService.addCreditsFromPurchase(
         String(userId || ""),
         String(offerGroup || ""),
-        Number(count),
+        readPositiveNumber(credits, "credits"),
+        {
+          metadata,
+          reason:
+            reason ||
+            "User purchased new tokens",
+          referenceId: orderId ? String(orderId) : undefined,
+        },
       );
-      res.json({ success: true, data });
+      res.json({ success: true, data: result });
     } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to add credits" });
+      res.status(400).json({
+        error: error?.message || "Failed to add credits from token purchase",
+      });
     }
   });
 
-  app.post("/credits/adjust", async (req, res) => {
-    if (!assertWriteApiKey(req, res)) return;
+  app.post(`${API_PREFIX}/transactions/job-consumption`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
     try {
-      const { userId, offerGroup, delta } = req.body || {};
-      const data = await transactionService.adjustCredits(
+      const { credits, jobId, metadata, offerGroup, reason, userId } =
+        req.body || {};
+      const result = await transactionService.deductCreditsForJob(
         String(userId || ""),
         String(offerGroup || ""),
-        Number(delta),
+        readPositiveNumber(credits, "credits"),
+        {
+          metadata,
+          reason:
+            reason ||
+            "User performed a billable job",
+          referenceId: jobId ? String(jobId) : undefined,
+        },
       );
-      res.json({ success: true, data });
+      res.json({ success: true, data: result });
     } catch (error: any) {
-      res.status(400).json({ error: error?.message || "Failed to adjust credits" });
+      res.status(400).json({
+        error: error?.message || "Failed to deduct credits for job consumption",
+      });
+    }
+  });
+
+  app.post(`${API_PREFIX}/transactions/allocate`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
+    try {
+      const { credits, metadata, offerGroup, reason, referenceId, userId } =
+        req.body || {};
+      const result = await transactionService.allocateCredits(
+        String(userId || ""),
+        String(offerGroup || ""),
+        readPositiveNumber(credits, "credits"),
+        {
+          metadata,
+          reason: reason || "Credits allocated to user account",
+          referenceId: referenceId ? String(referenceId) : undefined,
+        },
+      );
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({
+        error: error?.message || "Failed to allocate credits",
+      });
+    }
+  });
+
+  app.post(`${API_PREFIX}/transactions/adjust`, async (req, res) => {
+    if (!assertApiKey(req, res)) return;
+    try {
+      const { delta, metadata, offerGroup, reason, referenceId, userId } =
+        req.body || {};
+      const parsedDelta = Number(delta);
+      if (!Number.isFinite(parsedDelta) || parsedDelta === 0) {
+        throw new Error("delta must be a non-zero number");
+      }
+      const result = await transactionService.adjustCredits(
+        String(userId || ""),
+        String(offerGroup || ""),
+        parsedDelta,
+        {
+          metadata,
+          reason: reason || "Manual credit adjustment",
+          referenceId: referenceId ? String(referenceId) : undefined,
+        },
+      );
+      res.json({ success: true, data: result });
+    } catch (error: any) {
+      res.status(400).json({
+        error: error?.message || "Failed to adjust credits",
+      });
     }
   });
 
@@ -89,6 +176,15 @@ export function createCreditTransactionApp(
 }
 
 export async function bootstrap() {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !getExpectedApiKey()
+  ) {
+    throw new Error(
+      "USER_CREDITS_HTTP_API_KEY is required when NODE_ENV=production",
+    );
+  }
+
   const config = new EnvConfigReader();
   const connection = await connectToDb(config.dbUrl, config.dbName);
   const daoFactory = new MongooseDaoFactory(connection);
@@ -96,13 +192,15 @@ export async function bootstrap() {
   const app = createCreditTransactionApp(transactionService);
 
   app.listen(PORT, () => {
-    console.log(`[user-credits] HTTP wrapper running at http://0.0.0.0:${PORT}`);
+    console.log(
+      `[user-credits] transaction server running at http://0.0.0.0:${PORT}${API_PREFIX}`,
+    );
   });
 }
 
 if (process.env.NODE_ENV !== "test") {
   bootstrap().catch((error) => {
-    console.error("[user-credits] failed to start wrapper:", error);
+    console.error("[user-credits] failed to start transaction server:", error);
     process.exit(1);
   });
 }

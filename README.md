@@ -211,28 +211,53 @@ To adapt to that constraint, TestContainerSingleton.getInstance() now accepts a 
 
 ## Credit Transaction Server
 
-This repository now includes a lightweight transaction server (`src/server.ts`) that can be deployed independently and used as the only writer for user-credit transactions.
+This repository includes a standalone transaction server (`src/server.ts`) that handles all user-credit database writes. Deploy it on the same machine as UnifiedDataServer and point it at the same Mongo cluster.
 
 ### Environment
 
 Copy `.env.example` and provide values:
 
-- `DB_URL`: Mongo URI shared with your other services (for example UDS).
-- `DB_NAME`: dedicated database name for user-credits data.
-- `PORT`: HTTP port for this service.
-- `USER_CREDITS_HTTP_API_KEY`: optional write-protection API key (`x-api-key` header).
+- `MONGODB_URI`: same Mongo URI as UnifiedDataServer (preferred).
+- `DB_NAME`: dedicated database name for user-credits data (default: `user_credits`).
+- `DB_URL`: legacy fallback if `MONGODB_URI` is not set.
+- `PORT`: HTTP port for this service (default: `3100`).
+- `USER_CREDITS_HTTP_API_KEY`: required in production. Send as `x-api-key` header on all protected routes.
 
-This keeps services decoupled while still sharing the same Mongo instance/cluster.
+The server connects to the shared Mongo cluster but stores credit data in its own database.
 
 ### Endpoints
 
-- `GET /health`
-- `GET /credits/:userId`
-- `POST /credits/consume`
-- `POST /credits/add`
-- `POST /credits/adjust`
+All routes are prefixed with `/api/user-credits`.
 
-Write endpoints require `x-api-key` when `USER_CREDITS_HTTP_API_KEY` is configured.
+- `GET /api/user-credits/health`
+- `GET /api/user-credits/balance/:userId`
+- `GET /api/user-credits/transactions/:userId`
+- `POST /api/user-credits/transactions/token-purchase` — add credits because the user bought tokens
+- `POST /api/user-credits/transactions/job-consumption` — deduct credits because the user performed a job
+- `POST /api/user-credits/transactions/allocate` — allocate promotional or admin credits
+- `POST /api/user-credits/transactions/adjust` — signed manual adjustment
+
+Every mutation writes to `credit_transaction_log` (full audit trail) and `token_timetable` (legacy consumption tracking).
+
+#### Example: add 100 credits after token purchase
+
+```bash
+curl -X POST http://localhost:3100/api/user-credits/transactions/token-purchase \
+  -H "content-type: application/json" \
+  -H "x-api-key: $USER_CREDITS_HTTP_API_KEY" \
+  -d '{"userId":"<mongo-object-id>","offerGroup":"render","credits":100,"orderId":"order-123"}'
+```
+
+#### Example: deduct 70 credits after a render job
+
+```bash
+curl -X POST http://localhost:3100/api/user-credits/transactions/job-consumption \
+  -H "content-type: application/json" \
+  -H "x-api-key: $USER_CREDITS_HTTP_API_KEY" \
+  -d '{"userId":"<mongo-object-id>","offerGroup":"render","credits":70,"jobId":"job-456"}'
+```
+
+Protected routes require `x-api-key` when `USER_CREDITS_HTTP_API_KEY` is configured.
 
 ## Contributing
 

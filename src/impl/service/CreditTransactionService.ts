@@ -1,106 +1,390 @@
 import { Types } from "mongoose";
 
+
+
+import { CreditTransactionType } from "../mongoose/model/CreditTransactionLog";
+
 import { MongooseDaoFactory } from "../mongoose/dao/MongooseDaoFactory";
 
+
+
 type CreditOffer = {
+
   expires?: Date;
+
   offerGroup: string;
+
   starts?: Date;
+
   tokens?: number;
+
 };
+
+
 
 type UserCreditsDocument = {
+
   markModified: (path: string) => void;
+
   offers?: CreditOffer[];
+
   save: () => Promise<unknown>;
+
   subscriptions?: unknown[];
+
   userId: Types.ObjectId;
+
 };
 
+
+
+export type CreditTransactionContext = {
+
+  metadata?: Record<string, unknown>;
+
+  reason?: string;
+
+  referenceId?: string;
+
+  transactionType: CreditTransactionType;
+
+};
+
+
+
+export type CreditTransactionResult = {
+
+  balanceAfter: number;
+
+  balanceBefore: number;
+
+  credits: UserCreditsDocument;
+
+  logId: string;
+
+};
+
+
+
 export class CreditTransactionService {
+
   constructor(private readonly daoFactory: MongooseDaoFactory) {}
 
+
+
   async loadUserCredits(userId: string) {
+
     const objectId = this.parseUserId(userId);
+
     return await this.daoFactory.getUserCreditsDao().findByUserId(objectId as any);
+
   }
 
-  async consumeCredits(userId: string, offerGroup: string, count: number) {
-    if (!Number.isFinite(count) || count <= 0) {
-      throw new Error("count must be a positive number");
-    }
-    return this.adjustCredits(userId, offerGroup, -Math.abs(count));
-  }
 
-  async addCredits(userId: string, offerGroup: string, count: number) {
-    if (!Number.isFinite(count) || count <= 0) {
-      throw new Error("count must be a positive number");
-    }
-    return this.adjustCredits(userId, offerGroup, Math.abs(count));
-  }
 
-  async adjustCredits(userId: string, offerGroup: string, delta: number) {
-    const sanitizedGroup = String(offerGroup || "").trim();
-    if (!sanitizedGroup) {
-      throw new Error("offerGroup is required");
-    }
-    if (!Number.isFinite(delta) || delta === 0) {
-      throw new Error("delta must be a non-zero number");
-    }
+  async loadTransactionHistory(userId: string, limit = 100) {
 
     const objectId = this.parseUserId(userId);
-    const dao = this.daoFactory.getUserCreditsDao() as any;
-    let document = (await dao.findOne({ userId: objectId })) as UserCreditsDocument | null;
+
+    return await this.daoFactory
+
+      .getCreditTransactionLogDao()
+
+      .findByUserId(objectId, limit);
+
+  }
+
+
+
+  async addCreditsFromPurchase(
+
+    userId: string,
+
+    offerGroup: string,
+
+    credits: number,
+
+    context: Omit<CreditTransactionContext, "transactionType"> = {},
+
+  ) {
+
+    return this.applyTransaction(userId, offerGroup, Math.abs(credits), {
+
+      ...context,
+
+      transactionType: "token_purchase",
+
+    });
+
+  }
+
+
+
+  async deductCreditsForJob(
+
+    userId: string,
+
+    offerGroup: string,
+
+    credits: number,
+
+    context: Omit<CreditTransactionContext, "transactionType"> = {},
+
+  ) {
+
+    return this.applyTransaction(userId, offerGroup, -Math.abs(credits), {
+
+      ...context,
+
+      transactionType: "job_consumption",
+
+    });
+
+  }
+
+
+
+  async allocateCredits(
+
+    userId: string,
+
+    offerGroup: string,
+
+    credits: number,
+
+    context: Omit<CreditTransactionContext, "transactionType"> = {},
+
+  ) {
+
+    return this.applyTransaction(userId, offerGroup, Math.abs(credits), {
+
+      ...context,
+
+      transactionType: "allocation",
+
+    });
+
+  }
+
+
+
+  async adjustCredits(
+
+    userId: string,
+
+    offerGroup: string,
+
+    delta: number,
+
+    context: Omit<CreditTransactionContext, "transactionType"> = {},
+
+  ) {
+
+    return this.applyTransaction(userId, offerGroup, delta, {
+
+      ...context,
+
+      transactionType: "adjustment",
+
+    });
+
+  }
+
+
+
+  private async applyTransaction(
+
+    userId: string,
+
+    offerGroup: string,
+
+    delta: number,
+
+    context: CreditTransactionContext,
+
+  ): Promise<CreditTransactionResult> {
+
+    const sanitizedGroup = String(offerGroup || "").trim();
+
+    if (!sanitizedGroup) {
+
+      throw new Error("offerGroup is required");
+
+    }
+
+    if (!Number.isFinite(delta) || delta === 0) {
+
+      throw new Error("credits delta must be a non-zero number");
+
+    }
+
+
+
+    const objectId = this.parseUserId(userId);
+
+    const userCreditsDao = this.daoFactory.getUserCreditsDao() as any;
+
+    const tokenTimetableDao = this.daoFactory.getTokenTimetableDao() as any;
+
+    const transactionLogDao = this.daoFactory.getCreditTransactionLogDao();
+
+
+
+    let document = (await userCreditsDao.findOne({
+
+      userId: objectId,
+
+    })) as UserCreditsDocument | null;
+
+
 
     if (!document) {
+
       if (delta < 0) {
-        throw new Error("Cannot consume credits from an empty account");
+
+        throw new Error("Cannot deduct credits from an empty account");
+
       }
-      document = (await dao.create({
+
+      document = (await userCreditsDao.create({
+
         offers: [],
+
         subscriptions: [],
+
         userId: objectId,
+
       })) as UserCreditsDocument;
+
     }
+
+
 
     if (!Array.isArray(document.offers)) {
+
       document.offers = [];
+
     }
+
+
 
     let bucket = document.offers.find((item) => item.offerGroup === sanitizedGroup);
+
     if (!bucket) {
+
       if (delta < 0) {
+
         throw new Error(`No credits available for offerGroup '${sanitizedGroup}'`);
+
       }
-      bucket = {
+
+      document.offers.push({
+
         offerGroup: sanitizedGroup,
+
         starts: new Date(),
+
         tokens: 0,
-      };
-      document.offers.push(bucket);
+
+      });
+
+      bucket = document.offers[document.offers.length - 1];
+
     }
 
-    const previous = Number(bucket.tokens || 0);
-    const next = previous + delta;
-    if (next < 0) {
+
+
+    const balanceBefore = Number(bucket.tokens || 0);
+
+    const balanceAfter = balanceBefore + delta;
+
+    if (balanceAfter < 0) {
+
       throw new Error(
-        `Insufficient credits for offerGroup '${sanitizedGroup}'. current=${previous}, requestedDelta=${delta}`,
+
+        `Insufficient credits for offerGroup '${sanitizedGroup}'. current=${balanceBefore}, requestedDelta=${delta}`,
+
       );
+
     }
 
-    bucket.tokens = next;
+
+
+    bucket.tokens = balanceAfter;
+
     bucket.starts = bucket.starts || new Date();
+
     document.markModified("offers");
+
     await document.save();
 
-    return document;
+
+
+    await tokenTimetableDao.create({
+
+      offerGroup: sanitizedGroup,
+
+      tokens: delta,
+
+      userId: objectId,
+
+    });
+
+
+
+    const logEntry = await transactionLogDao.create({
+
+      balanceAfter,
+
+      balanceBefore,
+
+      credits: delta,
+
+      metadata: context.metadata,
+
+      offerGroup: sanitizedGroup,
+
+      reason: context.reason,
+
+      referenceId: context.referenceId,
+
+      transactionType: context.transactionType,
+
+      userId: objectId,
+
+    });
+
+
+
+    return {
+
+      balanceAfter,
+
+      balanceBefore,
+
+      credits: document,
+
+      logId: String((logEntry as any)._id),
+
+    };
+
   }
 
+
+
   private parseUserId(userId: string): Types.ObjectId {
+
     const value = String(userId || "").trim();
+
     if (!Types.ObjectId.isValid(value)) {
+
       throw new Error("userId must be a valid ObjectId string");
+
     }
+
     return new Types.ObjectId(value);
+
   }
+
 }
+
