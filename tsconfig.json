@@ -6,6 +6,9 @@
     "declaration": true,
     "outDir": "dist",
     "module": "ESNext",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "tsc-alias": {
     "resolveFullPaths": true,
@@ -13,6 +16,5 @@
   },
   "baseUrl": ".",
   "exclude": ["coverage", "dist", "node_modules", "test"],
-  "extends": "@tsconfig/recommended/tsconfig.json",
   "include": ["src/**/*"]
 }

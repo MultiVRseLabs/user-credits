@@ -13,7 +13,10 @@ import {
   IUserCreditsDao,
 } from "@user-credits/core";
 
-import { OfferDao, OrderDao, TokenTimetableDao, UserCreditsDao } from ".";
+import { OfferDao } from "./OfferDao";
+import { OrderDao } from "./OrderDao";
+import { TokenTimetableDao } from "./TokenTimetableDao";
+import { UserCreditsDao } from "./UserCreditsDao";
 import { CreditTransactionLogDao } from "./CreditTransactionLogDao";
 
 export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
