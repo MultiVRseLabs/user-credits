@@ -56,7 +56,11 @@ export function createCreditTransactionApp(
   app.use(express.json({ limit: "1mb" }));
 
   app.get(`${API_PREFIX}/health`, (_req, res) => {
-    res.json({ ok: true, service: "user-credits-transaction-server" });
+    res.json({
+      ok: true,
+      service: "user-credits-transaction-server",
+      userIdFormat: "email",
+    });
   });
 
   app.get(`${API_PREFIX}/balance/:userId`, async (req, res) => {

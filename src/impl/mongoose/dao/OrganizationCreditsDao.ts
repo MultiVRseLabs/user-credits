@@ -1,13 +1,20 @@
 import { Connection } from "mongoose";
 
+import { IBaseEntity } from "@user-credits/core";
+import { Types } from "mongoose";
+
 import organizationCreditsSchema, {
+  IOrganizationCredits,
   IMongooseOrganizationCredits,
 } from "../model/OrganizationCredits";
 import { BaseMongooseDao } from "./BaseMongooseDao";
 
+type OrganizationCreditsEntity = IOrganizationCredits &
+  IBaseEntity<Types.ObjectId>;
+
 export class OrganizationCreditsDao extends BaseMongooseDao<
   IMongooseOrganizationCredits,
-  IMongooseOrganizationCredits
+  OrganizationCreditsEntity
 > {
   constructor(connection: Connection) {
     super(connection, organizationCreditsSchema, "organization_credits");

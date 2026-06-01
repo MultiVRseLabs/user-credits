@@ -53,7 +53,10 @@ export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
   }
 
   getUserCreditsDao(): IUserCreditsDao<ObjectId, IUserCredits<ObjectId>> {
-    return this.userCreditsDao;
+    return this.userCreditsDao as unknown as IUserCreditsDao<
+      ObjectId,
+      IUserCredits<ObjectId>
+    >;
   }
 
   getCreditTransactionLogDao(): CreditTransactionLogDao {

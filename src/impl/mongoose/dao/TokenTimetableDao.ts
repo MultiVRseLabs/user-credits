@@ -1,14 +1,12 @@
-import { Connection, Types } from "mongoose";
-type ObjectId = Types.ObjectId;
+import { Connection } from "mongoose";
 
-import {
-  ConsumptionPerOfferGroup,
-  ITokenTimetable,
-  ITokenTimetableDao,
-} from "@user-credits/core";
+import { ConsumptionPerOfferGroup } from "@user-credits/core";
 
 import { TokenTimetable } from "../model";
-import { IMongooseTokenTimetable } from "../model/TokenTimetable";
+import {
+  IMongooseTokenTimetable,
+  TokenTimetableEntity,
+} from "../model/TokenTimetable";
 import { BaseMongooseDao } from "./BaseMongooseDao";
 
 type MatchType = {
@@ -16,15 +14,14 @@ type MatchType = {
   tokens?: { $lt: number };
 };
 
-export class TokenTimetableDao
-  extends BaseMongooseDao<IMongooseTokenTimetable, ITokenTimetable<ObjectId>>
-  implements ITokenTimetableDao<ObjectId, IMongooseTokenTimetable>
-{
+export class TokenTimetableDao extends BaseMongooseDao<
+  IMongooseTokenTimetable,
+  TokenTimetableEntity
+> {
   constructor(connection: Connection) {
     super(connection, TokenTimetable, "token_timetable");
   }
 
-  /* eslint-disable sort-keys-fix/sort-keys-fix */
   async consumptionInDateRange(
     offerGroup: string,
     startDate: Date,
@@ -35,17 +32,17 @@ export class TokenTimetableDao
         $match: {
           offerGroup,
           createdAt: { $gte: startDate, $lt: endDate },
-          tokens: { $lt: 0 }, // Select only negative tokens
+          tokens: { $lt: 0 },
         },
       },
       {
         $group: {
-          _id: null, // group all in one result (without grouping)
+          _id: null,
           totalNegativeTokens: { $sum: "$tokens" },
         },
       },
     ]);
-    return result.totalNegativeTokens;
+    return result?.totalNegativeTokens ?? 0;
   }
 
   async checkTokens(
@@ -53,18 +50,17 @@ export class TokenTimetableDao
     endDate: Date = new Date(),
     negative: boolean = true,
   ): Promise<[ConsumptionPerOfferGroup]> {
-    /* eslint-enable sort-keys-fix/sort-keys-fix */
     const match: MatchType = {
       createdAt: { $gte: startDate, $lt: endDate },
     };
 
-    if (negative) match.tokens = { $lt: 0 }; // Select only negative tokens
+    if (negative) match.tokens = { $lt: 0 };
 
     const aggregate = this.model.aggregate([
       { $match: match },
       {
         $group: {
-          _id: "$offerGroup", // group results by offerGroup
+          _id: "$offerGroup",
           totalTokens: { $sum: "$tokens" },
         },
       },
@@ -72,5 +68,4 @@ export class TokenTimetableDao
 
     return (await aggregate) as unknown as [ConsumptionPerOfferGroup];
   }
-  /* eslint-enable sort-keys-fix/sort-keys-fix */
 }

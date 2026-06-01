@@ -1,21 +1,21 @@
-import { Connection, Types } from "mongoose";
-type ObjectId = Types.ObjectId;
-
-import { IUserCredits, IUserCreditsDao } from "@user-credits/core";
+import { Connection } from "mongoose";
 
 import { UserCredits } from "../model";
-import { IMongooseUserCredits } from "../model/UserCredits";
+import {
+  IMongooseUserCredits,
+  UserCreditsEntity,
+} from "../model/UserCredits";
 import { BaseMongooseDao } from "./BaseMongooseDao";
 
-export class UserCreditsDao
-  extends BaseMongooseDao<IMongooseUserCredits, IUserCredits<ObjectId>>
-  implements IUserCreditsDao<ObjectId, IMongooseUserCredits>
-{
+export class UserCreditsDao extends BaseMongooseDao<
+  IMongooseUserCredits,
+  UserCreditsEntity
+> {
   constructor(connection: Connection) {
     super(connection, UserCredits, "user_credits");
   }
 
-  findByUserId(userId: string): Promise<IUserCredits<ObjectId>> {
-    return super.findOne({ userId }) as Promise<IUserCredits<ObjectId>>;
+  findByUserId(userId: string): Promise<IMongooseUserCredits | null> {
+    return super.findOne({ userId });
   }
 }

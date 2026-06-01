@@ -1,13 +1,19 @@
-import { Types } from "mongoose";
-type ObjectId = Types.ObjectId;
-import type {
-  IActivatedOffer,
-  ISubscription,
-  IUserCredits,
-} from "@user-credits/core";
-import { Document, Model, Schema } from "mongoose";
+import type { IActivatedOffer, ISubscription } from "@user-credits/core";
+import { IBaseEntity } from "@user-credits/core";
+import { Document, Model, Schema, Types } from "mongoose";
 
-export type IMongooseUserCredits = IUserCredits<ObjectId> & Document;
+import type { ObjectId } from "../TypeDefs";
+
+/** Persisted user-credits account (userId = normalized ERP email). */
+export type UserCreditsRecord = {
+  offers: IActivatedOffer[];
+  subscriptions: ISubscription<ObjectId>[];
+  userId: string;
+};
+
+export type IMongooseUserCredits = UserCreditsRecord & Document;
+
+export type UserCreditsEntity = UserCreditsRecord & IBaseEntity<ObjectId>;
 
 const subscriptionSchema = new Schema<
   ISubscription<ObjectId>,
@@ -30,9 +36,6 @@ const subscriptionSchema = new Schema<
   },
   expires: Date,
   name: { required: true, type: String },
-  /**
-   * Detailed documentation in interface @IOffer.offerGroup
-   */
   offerGroup: { required: true, type: String },
   offerId: {
     ref: "offer",

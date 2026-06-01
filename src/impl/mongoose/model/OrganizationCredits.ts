@@ -1,4 +1,5 @@
-import { Document, Model, Schema } from "mongoose";
+import { IBaseEntity } from "@user-credits/core";
+import { Document, Schema, Types } from "mongoose";
 
 export interface IOrganizationCredits {
   allocationVersion: number;
@@ -8,7 +9,9 @@ export interface IOrganizationCredits {
   totalPurchased: number;
 }
 
-export type IMongooseOrganizationCredits = IOrganizationCredits & Document;
+export type IMongooseOrganizationCredits = IOrganizationCredits &
+  IBaseEntity<Types.ObjectId> &
+  Document;
 
 const organizationCreditsSchema = new Schema<IMongooseOrganizationCredits>(
   {

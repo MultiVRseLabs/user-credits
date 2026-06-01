@@ -3,6 +3,7 @@ import { normalizeCreditsUserId } from "../../lib/creditsUserId";
 import { CreditTransactionType } from "../mongoose/model/CreditTransactionLog";
 
 import { MongooseDaoFactory } from "../mongoose/dao/MongooseDaoFactory";
+import { UserCreditsDao } from "../mongoose/dao/UserCreditsDao";
 
 
 
@@ -74,7 +75,8 @@ export class CreditTransactionService {
 
     const normalizedUserId = this.parseUserId(userId);
 
-    return await this.daoFactory.getUserCreditsDao().findByUserId(normalizedUserId);
+    const userCreditsDao = this.daoFactory.getUserCreditsDao() as unknown as UserCreditsDao;
+    return await userCreditsDao.findByUserId(normalizedUserId);
 
   }
 
@@ -220,7 +222,7 @@ export class CreditTransactionService {
 
     const normalizedUserId = this.parseUserId(userId);
 
-    const userCreditsDao = this.daoFactory.getUserCreditsDao() as any;
+    const userCreditsDao = this.daoFactory.getUserCreditsDao() as unknown as UserCreditsDao;
 
     const tokenTimetableDao = this.daoFactory.getTokenTimetableDao() as any;
 
