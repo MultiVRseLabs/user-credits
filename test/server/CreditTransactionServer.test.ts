@@ -11,6 +11,8 @@ import { createCreditTransactionApp } from "../../src/server";
 
 const API_PREFIX = "/api/user-credits";
 
+const encUser = (userId: string) => encodeURIComponent(userId);
+
 describe("Credit transaction server", () => {
   let mongoMemoryServer: MongoMemoryServer;
   let server: Server;
@@ -84,7 +86,7 @@ describe("Credit transaction server", () => {
   });
 
   it("adds credits from token purchase then deducts for job consumption", async () => {
-    const userId = "designer@example.com";
+    const userId = "purchase-flow@example.com";
 
     const purchaseResponse = await fetch(
       `${baseUrl}${API_PREFIX}/transactions/token-purchase`,
@@ -126,7 +128,7 @@ describe("Credit transaction server", () => {
     const jobJson = await jobResponse.json();
     expect(jobJson.data.balanceAfter).toBe(30);
 
-    const readResponse = await fetch(`${baseUrl}${API_PREFIX}/balance/${userId}`, {
+    const readResponse = await fetch(`${baseUrl}${API_PREFIX}/balance/${encUser(userId)}`, {
       headers: { "x-api-key": "test-api-key" },
     });
     const readJson = await readResponse.json();
@@ -140,9 +142,9 @@ describe("Credit transaction server", () => {
   });
 
   it("logs every transaction with type and reference metadata", async () => {
-    const userId = "designer@example.com";
+    const userId = "history-flow@example.com";
 
-    await fetch(`${baseUrl}${API_PREFIX}/transactions/token-purchase`, {
+    const purchaseRes = await fetch(`${baseUrl}${API_PREFIX}/transactions/token-purchase`, {
       body: JSON.stringify({
         credits: 50,
         offerGroup: "render",
@@ -155,8 +157,9 @@ describe("Credit transaction server", () => {
       },
       method: "POST",
     });
+    expect(purchaseRes.status).toBe(200);
 
-    await fetch(`${baseUrl}${API_PREFIX}/transactions/job-consumption`, {
+    const jobRes = await fetch(`${baseUrl}${API_PREFIX}/transactions/job-consumption`, {
       body: JSON.stringify({
         credits: 20,
         jobId: "job-789",
@@ -169,9 +172,10 @@ describe("Credit transaction server", () => {
       },
       method: "POST",
     });
+    expect(jobRes.status).toBe(200);
 
     const historyResponse = await fetch(
-      `${baseUrl}${API_PREFIX}/transactions/${userId}`,
+      `${baseUrl}${API_PREFIX}/transactions/${encUser(userId)}`,
       {
         headers: { "x-api-key": "test-api-key" },
       },
@@ -230,7 +234,7 @@ describe("Credit transaction server", () => {
     const splitJson = await splitResponse.json();
     expect(splitJson.data.perMember).toBe(50);
 
-    const balanceA = await fetch(`${baseUrl}${API_PREFIX}/balance/${userA}`, {
+    const balanceA = await fetch(`${baseUrl}${API_PREFIX}/balance/${encUser(userA)}`, {
       headers: { "x-api-key": "test-api-key" },
     });
     const balanceAJson = await balanceA.json();
@@ -259,7 +263,7 @@ describe("Credit transaction server", () => {
     expect(reallocResponse.status).toBe(200);
 
     const orgBalanceResponse = await fetch(
-      `${baseUrl}${API_PREFIX}/balance/organization/${orgCode}?offerGroup=render&memberUserIds=${userA},${userB}`,
+      `${baseUrl}${API_PREFIX}/balance/organization/${orgCode}?offerGroup=render&memberUserIds=${encUser(userA)},${encUser(userB)}`,
       { headers: { "x-api-key": "test-api-key" } },
     );
     expect(orgBalanceResponse.status).toBe(200);

@@ -10,9 +10,11 @@ const tokenTimetableSchema = new Schema<IMongooseTokenTimetable>(
     offerGroup: String,
     tokens: { default: 0, required: true, type: Number },
     userId: {
-      ref: "User",
       required: true,
-      type: Schema.Types.ObjectId,
+      type: String,
+      lowercase: true,
+      trim: true,
+      index: true,
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
