@@ -5,6 +5,10 @@ import { MongooseDaoFactory } from "./impl/mongoose/dao/MongooseDaoFactory";
 import { CreditTransactionService } from "./impl/service/CreditTransactionService";
 import { OrganizationCreditService } from "./impl/service/OrganizationCreditService";
 import { EnvConfigReader } from "./impl/service/EnvConfigReader";
+import {
+  maskMongoUri,
+  mongoUriHasCredentials,
+} from "./impl/mongoose/resolveMongoConfig";
 
 const PORT = Number(process.env.PORT || 3100);
 const API_PREFIX = "/api/user-credits";
@@ -316,6 +320,17 @@ export async function bootstrap() {
   }
 
   const config = new EnvConfigReader();
+  const credsInUri = mongoUriHasCredentials(config.dbUrl);
+  console.log(
+    `[user-credits] MongoDB dbName=${config.dbName} uri=${maskMongoUri(config.dbUrl)} authInUri=${credsInUri}`,
+  );
+  if (process.env.NODE_ENV === "production" && !credsInUri) {
+    throw new Error(
+      "MONGODB_URI must include username and password (e.g. mongodb://user:pass@host:27017/?authSource=admin). " +
+        "Copy the same authenticated URI used by UnifiedDataServer, or set DB_URL with credentials.",
+    );
+  }
+
   const connection = await connectToDb(config.dbUrl, config.dbName);
   const daoFactory = new MongooseDaoFactory(connection);
   const transactionService = new CreditTransactionService(daoFactory);

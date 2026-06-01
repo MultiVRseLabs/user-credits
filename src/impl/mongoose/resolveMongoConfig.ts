@@ -3,6 +3,16 @@ export type MongoConnectionConfig = {
   dbUrl: string;
 };
 
+/** True when the URI includes user:password before the host (not mongodb://host only). */
+export function mongoUriHasCredentials(uri: string): boolean {
+  return /mongodb(\+srv)?:\/\/[^/]+@/i.test(String(uri || "").trim());
+}
+
+/** Log-safe URI (password redacted). */
+export function maskMongoUri(uri: string): string {
+  return String(uri || "").replace(/\/\/([^@/]+)@/, "//***@");
+}
+
 /**
  * Resolves Mongo connection settings for the transaction server.
  *
