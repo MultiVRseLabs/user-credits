@@ -18,7 +18,7 @@ export type ICreditTransactionLog = {
   reason?: string;
   referenceId?: string;
   transactionType: CreditTransactionType;
-  userId: Types.ObjectId;
+  userId: string;
 };
 
 export type IMongooseCreditTransactionLog = ICreditTransactionLog & Document;
@@ -39,7 +39,10 @@ const creditTransactionLogSchema = new Schema<IMongooseCreditTransactionLog>(
     },
     userId: {
       required: true,
-      type: Schema.Types.ObjectId,
+      type: String,
+      lowercase: true,
+      trim: true,
+      index: true,
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } },

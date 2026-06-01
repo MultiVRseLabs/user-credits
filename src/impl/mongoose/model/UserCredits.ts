@@ -79,7 +79,10 @@ const userCreditsSchema = new Schema<IMongooseUserCredits>(
     subscriptions: [subscriptionSchema],
     userId: {
       required: true,
-      type: Schema.Types.ObjectId,
+      type: String,
+      lowercase: true,
+      trim: true,
+      index: true,
     },
   },
   { timestamps: true },

@@ -3,10 +3,24 @@ import express from "express";
 import { connectToDb } from "./impl/mongoose/connection";
 import { MongooseDaoFactory } from "./impl/mongoose/dao/MongooseDaoFactory";
 import { CreditTransactionService } from "./impl/service/CreditTransactionService";
+import { OrganizationCreditService } from "./impl/service/OrganizationCreditService";
 import { EnvConfigReader } from "./impl/service/EnvConfigReader";
 
 const PORT = Number(process.env.PORT || 3100);
 const API_PREFIX = "/api/user-credits";
+
+function parseMemberUserIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
 
 function getExpectedApiKey(): string {
   return String(process.env.USER_CREDITS_HTTP_API_KEY || "").trim();
@@ -36,6 +50,7 @@ function readPositiveNumber(value: unknown, fieldName: string): number {
 
 export function createCreditTransactionApp(
   transactionService: CreditTransactionService,
+  organizationCreditService?: OrganizationCreditService,
 ) {
   const app = express();
   app.use(express.json({ limit: "1mb" }));
@@ -172,6 +187,117 @@ export function createCreditTransactionApp(
     }
   });
 
+  if (organizationCreditService) {
+    app.get(
+      `${API_PREFIX}/balance/organization/:organizationCode`,
+      async (req, res) => {
+        if (!assertApiKey(req, res)) return;
+        try {
+          const organizationCode = String(req.params.organizationCode || "").trim();
+          const offerGroup = String(req.query.offerGroup || "render").trim();
+          const memberUserIds = parseMemberUserIds(req.query.memberUserIds);
+          const data = await organizationCreditService.getOrganizationBalance(
+            organizationCode,
+            offerGroup,
+            memberUserIds,
+          );
+          res.json({ success: true, data });
+        } catch (error: any) {
+          res.status(400).json({
+            error: error?.message || "Failed to load organization balance",
+          });
+        }
+      },
+    );
+
+    app.post(
+      `${API_PREFIX}/organizations/:organizationCode/pool/add`,
+      async (req, res) => {
+        if (!assertApiKey(req, res)) return;
+        try {
+          const organizationCode = String(req.params.organizationCode || "").trim();
+          const { credits, offerGroup } = req.body || {};
+          const data = await organizationCreditService.addToOrganizationPool(
+            organizationCode,
+            String(offerGroup || "render"),
+            readPositiveNumber(credits, "credits"),
+          );
+          res.json({ success: true, data });
+        } catch (error: any) {
+          res.status(400).json({
+            error: error?.message || "Failed to add credits to organization pool",
+          });
+        }
+      },
+    );
+
+    app.post(`${API_PREFIX}/transactions/reallocate`, async (req, res) => {
+      if (!assertApiKey(req, res)) return;
+      try {
+        const {
+          credits,
+          fromUserId,
+          metadata,
+          offerGroup,
+          organizationCode,
+          reason,
+          referenceId,
+          toUserId,
+        } = req.body || {};
+        const data = await organizationCreditService.reallocateCredits({
+          fromUserId: String(fromUserId || ""),
+          toUserId: String(toUserId || ""),
+          offerGroup: String(offerGroup || "render"),
+          credits: readPositiveNumber(credits, "credits"),
+          organizationCode: String(organizationCode || ""),
+          reason,
+          referenceId: referenceId ? String(referenceId) : undefined,
+          metadata,
+        });
+        res.json({ success: true, data });
+      } catch (error: any) {
+        res.status(400).json({
+          error: error?.message || "Failed to reallocate credits",
+        });
+      }
+    });
+
+    app.post(
+      `${API_PREFIX}/organizations/:organizationCode/split-equal`,
+      async (req, res) => {
+        if (!assertApiKey(req, res)) return;
+        try {
+          const organizationCode = String(req.params.organizationCode || "").trim();
+          const {
+            force,
+            memberUserIds,
+            offerGroup,
+            reason,
+            referenceId,
+            totalCredits,
+          } = req.body || {};
+          const data = await organizationCreditService.splitEqual({
+            organizationCode,
+            offerGroup: String(offerGroup || "render"),
+            memberUserIds: parseMemberUserIds(memberUserIds),
+            totalCredits:
+              totalCredits != null
+                ? readPositiveNumber(totalCredits, "totalCredits")
+                : undefined,
+            force: Boolean(force),
+            reason,
+            referenceId: referenceId ? String(referenceId) : undefined,
+          });
+          res.json({ success: true, data });
+        } catch (error: any) {
+          res.status(400).json({
+            error: error?.message || "Failed to split organization credits equally",
+          });
+        }
+      },
+    );
+  }
+
   return app;
 }
 
@@ -189,7 +315,14 @@ export async function bootstrap() {
   const connection = await connectToDb(config.dbUrl, config.dbName);
   const daoFactory = new MongooseDaoFactory(connection);
   const transactionService = new CreditTransactionService(daoFactory);
-  const app = createCreditTransactionApp(transactionService);
+  const organizationCreditService = new OrganizationCreditService(
+    daoFactory,
+    transactionService,
+  );
+  const app = createCreditTransactionApp(
+    transactionService,
+    organizationCreditService,
+  );
 
   app.listen(PORT, () => {
     console.log(

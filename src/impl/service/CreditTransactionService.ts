@@ -1,6 +1,4 @@
-import { Types } from "mongoose";
-
-
+import { normalizeCreditsUserId } from "../../lib/creditsUserId";
 
 import { CreditTransactionType } from "../mongoose/model/CreditTransactionLog";
 
@@ -32,7 +30,7 @@ type UserCreditsDocument = {
 
   subscriptions?: unknown[];
 
-  userId: Types.ObjectId;
+  userId: string;
 
 };
 
@@ -74,9 +72,9 @@ export class CreditTransactionService {
 
   async loadUserCredits(userId: string) {
 
-    const objectId = this.parseUserId(userId);
+    const normalizedUserId = this.parseUserId(userId);
 
-    return await this.daoFactory.getUserCreditsDao().findByUserId(objectId as any);
+    return await this.daoFactory.getUserCreditsDao().findByUserId(normalizedUserId);
 
   }
 
@@ -84,13 +82,13 @@ export class CreditTransactionService {
 
   async loadTransactionHistory(userId: string, limit = 100) {
 
-    const objectId = this.parseUserId(userId);
+    const normalizedUserId = this.parseUserId(userId);
 
     return await this.daoFactory
 
       .getCreditTransactionLogDao()
 
-      .findByUserId(objectId, limit);
+      .findByUserId(normalizedUserId, limit);
 
   }
 
@@ -220,7 +218,7 @@ export class CreditTransactionService {
 
 
 
-    const objectId = this.parseUserId(userId);
+    const normalizedUserId = this.parseUserId(userId);
 
     const userCreditsDao = this.daoFactory.getUserCreditsDao() as any;
 
@@ -232,7 +230,7 @@ export class CreditTransactionService {
 
     let document = (await userCreditsDao.findOne({
 
-      userId: objectId,
+      userId: normalizedUserId,
 
     })) as UserCreditsDocument | null;
 
@@ -252,7 +250,7 @@ export class CreditTransactionService {
 
         subscriptions: [],
 
-        userId: objectId,
+        userId: normalizedUserId,
 
       })) as UserCreditsDocument;
 
@@ -326,7 +324,7 @@ export class CreditTransactionService {
 
       tokens: delta,
 
-      userId: objectId,
+      userId: normalizedUserId,
 
     });
 
@@ -350,7 +348,7 @@ export class CreditTransactionService {
 
       transactionType: context.transactionType,
 
-      userId: objectId,
+      userId: normalizedUserId,
 
     });
 
@@ -372,18 +370,8 @@ export class CreditTransactionService {
 
 
 
-  private parseUserId(userId: string): Types.ObjectId {
-
-    const value = String(userId || "").trim();
-
-    if (!Types.ObjectId.isValid(value)) {
-
-      throw new Error("userId must be a valid ObjectId string");
-
-    }
-
-    return new Types.ObjectId(value);
-
+  private parseUserId(userId: string): string {
+    return normalizeCreditsUserId(userId);
   }
 
 }

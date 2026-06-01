@@ -19,7 +19,7 @@ export class CreditTransactionLogDao extends BaseMongooseDao<
   }
 
   async findByUserId(
-    userId: Types.ObjectId,
+    userId: string,
     limit = 100,
   ): Promise<IMongooseCreditTransactionLog[]> {
     return this.model

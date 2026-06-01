@@ -18,11 +18,13 @@ import { OrderDao } from "./OrderDao";
 import { TokenTimetableDao } from "./TokenTimetableDao";
 import { UserCreditsDao } from "./UserCreditsDao";
 import { CreditTransactionLogDao } from "./CreditTransactionLogDao";
+import { OrganizationCreditsDao } from "./OrganizationCreditsDao";
 
 export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
   private readonly creditTransactionLogDao;
   private readonly offerDao;
   private readonly orderDao;
+  private readonly organizationCreditsDao;
   private readonly tokenTimetableDao;
   private readonly userCreditsDao;
 
@@ -30,6 +32,7 @@ export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
     this.creditTransactionLogDao = new CreditTransactionLogDao(connection);
     this.offerDao = new OfferDao(connection);
     this.orderDao = new OrderDao(connection);
+    this.organizationCreditsDao = new OrganizationCreditsDao(connection);
     this.tokenTimetableDao = new TokenTimetableDao(connection);
     this.userCreditsDao = new UserCreditsDao(connection);
   }
@@ -55,5 +58,9 @@ export class MongooseDaoFactory implements IDaoFactory<ObjectId> {
 
   getCreditTransactionLogDao(): CreditTransactionLogDao {
     return this.creditTransactionLogDao;
+  }
+
+  getOrganizationCreditsDao(): OrganizationCreditsDao {
+    return this.organizationCreditsDao;
   }
 }
